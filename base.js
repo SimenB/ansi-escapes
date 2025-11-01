@@ -8,10 +8,22 @@ const SEP = ';';
 
 const isTerminalApp = !isBrowser && process.env.TERM_PROGRAM === 'Apple_Terminal';
 const isWindows = !isBrowser && process.platform === 'win32';
+const isTmux = !isBrowser && (process.env.TERM?.startsWith('screen') || process.env.TERM?.startsWith('tmux') || process.env.TMUX !== undefined);
 
 const cwdFunction = isBrowser ? () => {
 	throw new Error('`process.cwd()` only works in Node.js, not the browser.');
 } : process.cwd;
+
+const wrapOsc = sequence => {
+	if (isTmux) {
+		// Tmux requires OSC sequences to be wrapped with DCS tmux; <sequence> ST
+		// and all ESCs in <sequence> to be replaced with ESC ESC.
+		// It only accepts ESC backslash for ST.
+		return '\u001BPtmux;' + sequence.replaceAll('\u001B', '\u001B\u001B') + '\u001B\\';
+	}
+
+	return sequence;
+};
 
 export const cursorTo = (x, y) => {
 	if (typeof x !== 'number') {
@@ -101,20 +113,11 @@ export const exitAlternativeScreen = ESC + '?1049l';
 
 export const beep = BEL;
 
-export const link = (text, url) => [
-	OSC,
-	'8',
-	SEP,
-	SEP,
-	url,
-	BEL,
-	text,
-	OSC,
-	'8',
-	SEP,
-	SEP,
-	BEL,
-].join('');
+export const link = (text, url) => {
+	const openLink = wrapOsc(`${OSC}8${SEP}${SEP}${url}${BEL}`);
+	const closeLink = wrapOsc(`${OSC}8${SEP}${SEP}${BEL}`);
+	return openLink + text + closeLink;
+};
 
 export const image = (data, options = {}) => {
 	let returnValue = `${OSC}1337;File=inline=1`;
@@ -134,11 +137,11 @@ export const image = (data, options = {}) => {
 	const imageBuffer = Buffer.from(data);
 
 	// `size` is optional in the spec, but xterm.js requires it.
-	return returnValue + `;size=${imageBuffer.byteLength}` + ':' + imageBuffer.toString('base64') + BEL;
+	return wrapOsc(returnValue + `;size=${imageBuffer.byteLength}` + ':' + imageBuffer.toString('base64') + BEL);
 };
 
 export const iTerm = {
-	setCwd: (cwd = cwdFunction()) => `${OSC}50;CurrentDir=${cwd}${BEL}`,
+	setCwd: (cwd = cwdFunction()) => wrapOsc(`${OSC}50;CurrentDir=${cwd}${BEL}`),
 
 	annotation(message, options = {}) {
 		let returnValue = `${OSC}1337;`;
@@ -163,12 +166,12 @@ export const iTerm = {
 			returnValue += message;
 		}
 
-		return returnValue + BEL;
+		return wrapOsc(returnValue + BEL);
 	},
 };
 
 export const ConEmu = {
-	setCwd: (cwd = cwdFunction()) => `${OSC}9;9;${cwd}${BEL}`,
+	setCwd: (cwd = cwdFunction()) => wrapOsc(`${OSC}9;9;${cwd}${BEL}`),
 };
 
 export const setCwd = (cwd = cwdFunction()) => iTerm.setCwd(cwd) + ConEmu.setCwd(cwd);
