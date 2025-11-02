@@ -1,4 +1,5 @@
 import process from 'node:process';
+import os from 'node:os';
 import {isBrowser} from 'environment';
 
 const ESC = '\u001B[';
@@ -100,13 +101,33 @@ export const clearScreen = '\u001Bc';
 
 export const clearViewport = `${eraseScreen}${ESC}H`;
 
-export const clearTerminal = isWindows
+const isOldWindows = () => {
+	if (isBrowser || !isWindows) {
+		return false;
+	}
+
+	const parts = os.release().split('.');
+	const major = Number(parts[0]);
+	const build = Number(parts[2] ?? 0);
+
+	if (major < 10) {
+		return true;
+	}
+
+	if (major === 10 && build < 10_586) {
+		return true;
+	}
+
+	return false;
+};
+
+export const clearTerminal = isOldWindows()
 	? `${eraseScreen}${ESC}0f`
 	// 1. Erases the screen (Only done in case `2` is not supported)
 	// 2. Erases the whole screen including scrollback buffer
 	// 3. Moves cursor to the top-left position
 	// More info: https://www.real-world-systems.com/docs/ANSIcode.html
-	:	`${eraseScreen}${ESC}3J${ESC}H`;
+	: `${eraseScreen}${ESC}3J${ESC}H`;
 
 export const enterAlternativeScreen = ESC + '?1049h';
 export const exitAlternativeScreen = ESC + '?1049l';
