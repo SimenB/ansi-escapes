@@ -18,3 +18,9 @@ test('clearTerminal', t => {
 	// Should contain escape sequences
 	t.true(clearTerminal.includes('\u001B'));
 });
+
+test('synchronized output', t => {
+	t.is(ansiEscapes.beginSynchronizedOutput, '\u001B[?2026h');
+	t.is(ansiEscapes.endSynchronizedOutput, '\u001B[?2026l');
+	t.is(ansiEscapes.synchronizedOutput('foo'), '\u001B[?2026hfoo\u001B[?2026l');
+});
